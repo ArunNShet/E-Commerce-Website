@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: eshop_postgres
+    restart: always
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - eshop_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: eshop_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - eshop_network
+
+volumes:
+  postgres_data:
+
+networks:
+  eshop_network:
