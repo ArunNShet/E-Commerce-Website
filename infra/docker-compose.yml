@@ -3,7 +3,7 @@ version: '3.9'
 services:
   postgres:
     image: postgres:15
-    container_name: eshop_postgres
+    container_name: ecommerce_postgres
     restart: always
     ports:
       - "${POSTGRES_PORT}:5432"
@@ -12,21 +12,21 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ecommerce_postgres_data:/var/lib/postgresql/data
     networks:
-      - eshop_network
+      - ecommerce_network
 
   redis:
     image: redis:7-alpine
-    container_name: eshop_redis
+    container_name: ecommerce_redis
     restart: always
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
     networks:
-      - eshop_network
+      - ecommerce_network
 
 volumes:
-  postgres_data:
+  ecommerce_postgres_data:
 
 networks:
-  eshop_network:
+  ecommerce_network:
