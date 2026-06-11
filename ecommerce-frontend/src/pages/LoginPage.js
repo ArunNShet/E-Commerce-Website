@@ -1,36 +1,37 @@
 import React, { useState } from "react";
+import { AiFillEye, AiFillEyeInvisible } from "react-icons/ai";
 import { useNavigate } from "react-router-dom";
 import { loginUser } from "../api/authApi";
 import { setAuthSession } from "../lib/auth";
+import { showErrorToast, showSuccessToast } from "../lib/toast";
 
 function LoginPage({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const onSubmit = async (event) => {
     event.preventDefault();
     setLoading(true);
-    setError("");
     try {
       const data = await loginUser({ username, password });
       const session = setAuthSession(data.accessToken, data.role);
       onLogin(session);
+      showSuccessToast("Login successful.");
       navigate(data.role === "ADMIN" ? "/admin/products" : "/");
     } catch (err) {
-      setError(`Login failed: ${err.message}`);
+      showErrorToast(`Login failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <section className="card">
+    <section className="card auth-card">
       <h2>Login</h2>
-      <form onSubmit={onSubmit} autoComplete="off">
+      <form className="auth-form" onSubmit={onSubmit} autoComplete="off">
         <label>
           Email
           <input
@@ -41,7 +42,7 @@ function LoginPage({ onLogin }) {
         </label>
         <label>
           Password
-          <div className="input-with-icon">
+          <div className="input-with-icon input-with-overlay-icon">
             <input
               type={showPassword ? "text" : "password"}
               value={password}
@@ -50,22 +51,21 @@ function LoginPage({ onLogin }) {
             />
             <button
               type="button"
-              className="icon-button"
+              className="icon-button password-toggle-button"
               onClick={() => setShowPassword((prev) => !prev)}
               aria-label={showPassword ? "Hide password" : "Show password"}
             >
-              {showPassword ? "Hide" : "Show"}
+              {showPassword ? <AiFillEye /> : <AiFillEyeInvisible />}
             </button>
           </div>
         </label>
-        <button type="submit" disabled={loading}>
+        <button type="submit" className="auth-submit-button" disabled={loading}>
           {loading ? "Logging in..." : "Login"}
         </button>
       </form>
       <p className="muted">
         New user? <a href="/register">Register here</a>
       </p>
-      {error && <p className="error">{error}</p>}
     </section>
   );
 }

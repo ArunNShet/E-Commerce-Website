@@ -1,70 +1,88 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  createProduct
+  createProduct,
+  uploadProductImage
 } from "../api/productsApi";
+import ProductImage from "../components/ProductImage";
+import { showErrorToast, showSuccessToast } from "../lib/toast";
 
 const initialForm = {
   name: "",
   weight: "",
   description: "",
-  imageUrl: "",
   price: "",
   stock: "0"
 };
 
 function AdminProductsPage({ authToken }) {
   const [form, setForm] = useState(initialForm);
-  const [toast, setToast] = useState(null);
-  const toastTimerRef = useRef(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
 
   useEffect(() => {
     return () => {
-      if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current);
+      if (imagePreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(imagePreviewUrl);
       }
     };
-  }, []);
-
-  const showToast = (message, type = "success") => {
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-    }
-    setToast({ message, type });
-    toastTimerRef.current = setTimeout(() => {
-      setToast(null);
-      toastTimerRef.current = null;
-    }, 3000);
-  };
+  }, [imagePreviewUrl]);
 
   const onChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const toPayload = () => ({
+  const toPayload = (imageUrl) => ({
     name: form.name.trim(),
     weight: form.weight.trim(),
     description: form.description.trim(),
-    imageUrl: form.imageUrl.trim(),
+    imageUrl,
     price: Number(form.price),
     stock: Number(form.stock)
   });
 
-  const resetForm = () => setForm(initialForm);
+  const resetForm = () => {
+    if (imagePreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+    setForm(initialForm);
+    setImageFile(null);
+    setImagePreviewUrl("");
+  };
+
+  const onImageChange = (file) => {
+    if (imagePreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(imagePreviewUrl);
+    }
+
+    if (!file) {
+      setImageFile(null);
+      setImagePreviewUrl("");
+      return;
+    }
+
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+  };
 
   const onSubmit = async (event) => {
     event.preventDefault();
     try {
-      await createProduct(toPayload(), authToken);
-      showToast("Product created.");
+      let uploadedImageUrl = "";
+      if (imageFile) {
+        const uploadResponse = await uploadProductImage(imageFile, authToken);
+        uploadedImageUrl = uploadResponse?.imageUrl || "";
+      }
+
+      await createProduct(toPayload(uploadedImageUrl), authToken);
+      showSuccessToast("Product created.");
       resetForm();
     } catch (err) {
-      showToast(err.message, "error");
+      showErrorToast(err.message);
     }
   };
 
   return (
     <section className="admin-products-page">
-      {toast && <div className={`toast-message ${toast.type}`}>{toast.message}</div>}
       <div className="card">
         <h2>Create New Products</h2>
         <form className="admin-products-form" onSubmit={onSubmit}>
@@ -97,13 +115,26 @@ function AdminProductsPage({ authToken }) {
             />
           </label>
           <label>
-            Image URL
-            <input
-              value={form.imageUrl}
-              onChange={(e) => onChange("imageUrl", e.target.value)}
-              maxLength={500}
-              placeholder="https://example.com/product.jpg"
-            />
+            Upload File
+            <div className="file-upload-row">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => onImageChange(e.target.files?.[0] || null)}
+              />
+              {imagePreviewUrl && (
+                <div className="admin-image-preview admin-image-preview-inline">
+                  <ProductImage
+                    imageUrl={imagePreviewUrl}
+                    productName={form.name || "Product preview"}
+                    className="admin-image-preview-media admin-image-preview-inline-media"
+                  />
+                </div>
+              )}
+            </div>
+            <small className="form-help-text">
+              Image files are saved in backend folder `uploads/products`.
+            </small>
           </label>
           <label>
             Price

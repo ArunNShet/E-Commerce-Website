@@ -18,11 +18,15 @@ export function addToCart(product) {
   const existing = items.find((item) => item.id === product.id);
   if (existing) {
     existing.quantity += 1;
+    if (!existing.imageUrl && product.imageUrl) {
+      existing.imageUrl = product.imageUrl;
+    }
   } else {
     items.push({
       id: product.id,
       name: product.name,
       price: Number(product.price),
+      imageUrl: product.imageUrl || "",
       quantity: 1
     });
   }

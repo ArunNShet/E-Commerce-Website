@@ -31,3 +31,14 @@ export function deleteProduct(id, authToken) {
     headers: { Authorization: `Bearer ${authToken}` }
   });
 }
+
+export function uploadProductImage(file, authToken) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  return apiRequest("/api/uploads/products", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${authToken}` },
+    body: formData
+  });
+}

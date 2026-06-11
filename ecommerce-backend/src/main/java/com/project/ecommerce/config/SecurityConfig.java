@@ -43,6 +43,8 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/uploads/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/uploads/products").hasRole(UserRole.ADMIN.name())
                         .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole(UserRole.ADMIN.name())
                         .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole(UserRole.ADMIN.name())
                         .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole(UserRole.ADMIN.name())

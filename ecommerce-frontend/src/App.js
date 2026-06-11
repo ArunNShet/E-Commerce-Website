@@ -1,5 +1,15 @@
 import React, { useMemo, useState } from "react";
-import { BrowserRouter, Link, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, NavLink, Navigate, Route, Routes } from "react-router-dom";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import { AiFillHome, AiOutlineHome } from "react-icons/ai";
+import { BsCart4, BsCartFill } from "react-icons/bs";
+import {
+  MdAdminPanelSettings,
+  MdOutlineAdminPanelSettings,
+  MdOutlineShoppingBag,
+  MdShoppingBag,
+} from "react-icons/md";
 import HomePage from "./pages/HomePage";
 import ProductListPage from "./pages/ProductListPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
@@ -10,6 +20,7 @@ import AdminProductsPage from "./pages/AdminProductsPage";
 import { clearAuthSession, getAuthSession } from "./lib/auth";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
+import { showSuccessToast } from "./lib/toast";
 
 function App() {
   const [session, setSession] = useState(getAuthSession());
@@ -19,6 +30,7 @@ function App() {
   const handleLogout = () => {
     clearAuthSession();
     setSession({ token: "", role: "" });
+    showSuccessToast("Logged out successfully.");
   };
 
   return (
@@ -58,12 +70,53 @@ function App() {
           </Routes>
         </main>
         <Footer />
+        <ToastContainer newestOnTop pauseOnFocusLoss={false} />
 
         <nav className="bottom-nav">
-          <Link to="/">Home</Link>
-          <Link to="/products">Products</Link>
-          {!isAdmin && <Link to={isLoggedIn ? "/cart" : "/login"}>Cart</Link>}
-          {isAdmin && <Link to="/admin/products">Admin</Link>}
+          <NavLink to="/" end>
+            {({ isActive }) => (
+              <>
+                <span className="nav-item-icon">
+                  {isActive ? <AiFillHome /> : <AiOutlineHome />}
+                </span>
+                Home
+              </>
+            )}
+          </NavLink>
+          <NavLink to="/products">
+            {({ isActive }) => (
+              <>
+                <span className="nav-item-icon">
+                  {isActive ? <MdShoppingBag /> : <MdOutlineShoppingBag />}
+                </span>
+                Products
+              </>
+            )}
+          </NavLink>
+          {!isAdmin && (
+            <NavLink to={isLoggedIn ? "/cart" : "/login"}>
+              {({ isActive }) => (
+                <>
+                  <span className="nav-item-icon">
+                    {isActive ? <BsCartFill /> : <BsCart4 />}
+                  </span>
+                  Cart
+                </>
+              )}
+            </NavLink>
+          )}
+          {isAdmin && (
+            <NavLink to="/admin/products">
+              {({ isActive }) => (
+                <>
+                  <span className="nav-item-icon">
+                    {isActive ? <MdAdminPanelSettings /> : <MdOutlineAdminPanelSettings />}
+                  </span>
+                  Admin
+                </>
+              )}
+            </NavLink>
+          )}
         </nav>
       </div>
     </BrowserRouter>

@@ -1,16 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { deleteProduct, listProducts, updateProduct } from "../api/productsApi";
+import { deleteProduct, listProducts, updateProduct, uploadProductImage } from "../api/productsApi";
 import { addToCart, getCartItems, removeFromCart, updateCartQuantity } from "../lib/cartStore";
 import { formatPricePerWeight } from "../lib/currency";
 import ProductImage from "../components/ProductImage";
+import { FiSearch } from "react-icons/fi";
+import { showErrorToast, showSuccessToast, showWarningToast } from "../lib/toast";
 
 function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
   const [cartQuantities, setCartQuantities] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
@@ -21,7 +22,8 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
     price: "",
     stock: "0"
   });
-  const toastTimerRef = useRef(null);
+  const [editImageFile, setEditImageFile] = useState(null);
+  const [editImagePreviewUrl, setEditImagePreviewUrl] = useState("");
   const navigate = useNavigate();
 
   const loadProducts = async () => {
@@ -48,61 +50,49 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
   useEffect(() => {
     loadProducts();
     syncCartQuantities();
-    return () => {
-      if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current);
-      }
-    };
   }, []);
 
-  const showToast = (message, type = "success") => {
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-    }
-    setToast({ message, type });
-    toastTimerRef.current = setTimeout(() => {
-      setToast(null);
-      toastTimerRef.current = null;
-    }, 3000);
-  };
+  useEffect(() => {
+    return () => {
+      if (editImagePreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(editImagePreviewUrl);
+      }
+    };
+  }, [editImagePreviewUrl]);
 
   const orderedProducts = useMemo(() => {
     const searchTerm = search.trim().toLowerCase();
+    const matches = [];
+    const remainingInStock = [];
+    const remainingOutOfStock = [];
 
-    const reorderBySearch = (list) => {
-      if (!searchTerm) {
-        return list;
-      }
-      const matches = [];
-      const nonMatches = [];
-      list.forEach((product) => {
-        const name = String(product.name || "").toLowerCase();
-        if (name.includes(searchTerm)) {
-          matches.push(product);
-        } else {
-          nonMatches.push(product);
-        }
-      });
-      return [...matches, ...nonMatches];
-    };
-
-    const inStock = [];
-    const outOfStock = [];
     products.forEach((product) => {
+      const name = String(product.name || "").toLowerCase();
+      const isMatch = searchTerm && name.includes(searchTerm);
+
+      if (isMatch) {
+        matches.push(product);
+        return;
+      }
+
       if (Number(product.stock) <= 0) {
-        outOfStock.push(product);
+        remainingOutOfStock.push(product);
       } else {
-        inStock.push(product);
+        remainingInStock.push(product);
       }
     });
 
-    return [...reorderBySearch(inStock), ...reorderBySearch(outOfStock)];
+    if (!searchTerm) {
+      return [...remainingInStock, ...remainingOutOfStock];
+    }
+
+    return [...matches, ...remainingInStock, ...remainingOutOfStock];
   }, [products, search]);
 
   const onIncreaseQuantity = (product) => {
     addToCart(product);
     syncCartQuantities();
-    showToast("Added to cart.");
+    showSuccessToast("Added to cart.");
   };
 
   const onDecreaseQuantity = (productId, currentQuantity) => {
@@ -115,6 +105,9 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
   };
 
   const onEditStart = (product) => {
+    if (editImagePreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(editImagePreviewUrl);
+    }
     setEditingId(product.id);
     setEditForm({
       name: product.name || "",
@@ -124,11 +117,33 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
       price: String(product.price ?? ""),
       stock: String(product.stock ?? 0)
     });
+    setEditImageFile(null);
+    setEditImagePreviewUrl("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const onEditCancel = () => {
+    if (editImagePreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(editImagePreviewUrl);
+    }
     setEditingId(null);
+    setEditImageFile(null);
+    setEditImagePreviewUrl("");
+  };
+
+  const onEditImageChange = (file) => {
+    if (editImagePreviewUrl.startsWith("blob:")) {
+      URL.revokeObjectURL(editImagePreviewUrl);
+    }
+
+    if (!file) {
+      setEditImageFile(null);
+      setEditImagePreviewUrl("");
+      return;
+    }
+
+    setEditImageFile(file);
+    setEditImagePreviewUrl(URL.createObjectURL(file));
   };
 
   const onEditSave = async (event) => {
@@ -138,23 +153,37 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
     }
 
     try {
-      await updateProduct(
+      let uploadedImageUrl = editForm.imageUrl.trim();
+      if (editImageFile) {
+        const uploadResponse = await uploadProductImage(editImageFile, authToken);
+        uploadedImageUrl = uploadResponse?.imageUrl || uploadedImageUrl;
+      }
+
+      const updatedProduct = await updateProduct(
         editingId,
         {
           name: editForm.name.trim(),
           weight: editForm.weight.trim(),
           description: editForm.description.trim(),
-          imageUrl: editForm.imageUrl.trim(),
+          imageUrl: uploadedImageUrl,
           price: Number(editForm.price),
           stock: Number(editForm.stock)
         },
         authToken
       );
+      setProducts((prev) =>
+        prev.map((product) => (product.id === editingId ? updatedProduct : product))
+      );
+      setEditForm((prev) => ({ ...prev, imageUrl: uploadedImageUrl }));
+      setEditImageFile(null);
+      if (editImagePreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(editImagePreviewUrl);
+      }
       setEditingId(null);
-      showToast("Product updated.");
-      await loadProducts();
+      setEditImagePreviewUrl("");
+      showSuccessToast("Product updated.");
     } catch (err) {
-      showToast(err.message, "error");
+      showErrorToast(err.message);
     }
   };
 
@@ -164,16 +193,15 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
     }
     try {
       await deleteProduct(id, authToken);
-      showToast("Product deleted.");
+      showWarningToast("Product deleted.");
       await loadProducts();
     } catch (err) {
-      showToast(err.message, "error");
+      showErrorToast(err.message);
     }
   };
 
   return (
     <section>
-      {toast && <div className={`toast-message ${toast.type}`}>{toast.message}</div>}
       {isAdmin && editingId && (
         <div className="card">
           <h2>Edit Product</h2>
@@ -195,11 +223,26 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
               />
             </label>
             <label>
-              Image URL
-              <input
-                value={editForm.imageUrl}
-                onChange={(e) => setEditForm((prev) => ({ ...prev, imageUrl: e.target.value }))}
-              />
+              Upload File
+              <div className="file-upload-row">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => onEditImageChange(e.target.files?.[0] || null)}
+                />
+                {editImagePreviewUrl && (
+                  <div className="admin-image-preview admin-image-preview-inline">
+                    <ProductImage
+                      imageUrl={editImagePreviewUrl}
+                      productName={editForm.name || "Product preview"}
+                      className="admin-image-preview-media admin-image-preview-inline-media"
+                    />
+                  </div>
+                )}
+              </div>
+              <small className="form-help-text">
+                Choose a new image only if you want to replace the current one.
+              </small>
             </label>
             <label>
               Description
@@ -240,20 +283,29 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
         </div>
       )}
       <div className="admin-search-block">
-        <label htmlFor="product-search">Search Products</label>
-        <input
-          id="product-search"
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by product name"
-        />
+        <div className="search-input-wrap">
+          <span className="search-input-icon" aria-hidden="true">
+            <FiSearch />
+          </span>
+          <input
+            id="product-search"
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by product name"
+          />
+        </div>
       </div>
 
-      {loading && <p className="muted">Loading products...</p>}
+      {loading && (
+        <div className="loading-state">
+          <div className="loading-spinner" aria-hidden="true"></div>
+          <p className="muted">Loading products...</p>
+        </div>
+      )}
       {error && <p className="error">{error}</p>}
 
-      <div className="grid">
+      {!loading && <div className="grid">
         {orderedProducts.map((product) => {
           const isOutOfStock = Number(product.stock) <= 0;
           const quantity = cartQuantities[product.id] || 0;
@@ -263,6 +315,11 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
               <Link
                 to={isLoggedIn ? `/products/${product.id}` : "/login"}
                 className="product-card-image-wrap product-image-link"
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    showWarningToast("Login required to view details or add to cart.");
+                  }
+                }}
               >
                 <ProductImage imageUrl={product.imageUrl} productName={product.name} className="product-card-image" />
               </Link>
@@ -274,6 +331,11 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
               <Link
                 to={isLoggedIn ? `/products/${product.id}` : "/login"}
                 className={!isLoggedIn ? "muted" : undefined}
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    showWarningToast("Login required to view details or add to cart.");
+                  }
+                }}
               >
                 View
               </Link>
@@ -285,7 +347,17 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
                         -
                       </button>
                       <span>{quantity}</span>
-                      <button type="button" className="add-cart" disabled={isOutOfStock} onClick={() => onIncreaseQuantity(product)}>
+                      <button
+                        type="button"
+                        className="add-cart"
+                        onClick={() => {
+                          if (isOutOfStock) {
+                            showWarningToast("Product not available.");
+                            return;
+                          }
+                          onIncreaseQuantity(product);
+                        }}
+                      >
                         +
                       </button>
                     </div>
@@ -293,19 +365,20 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
                     <button
                       type="button"
                       className="add-cart"
-                      disabled={!isLoggedIn || isOutOfStock}
                       onClick={() => {
                         if (!isLoggedIn) {
+                          showWarningToast("Login required to view details or add to cart.");
                           navigate("/login");
                           return;
                         }
                         if (isOutOfStock) {
+                          showWarningToast("Product not available.");
                           return;
                         }
                         onIncreaseQuantity(product);
                       }}
                     >
-                      Add to Cart
+                      {"\uD83D\uDED2"} Add Cart
                     </button>
                   )}
                 </>
@@ -321,10 +394,9 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
                 </>
               )}
             </div>
-            {!isLoggedIn && !isAdmin && <p className="muted">Login required to view details or add to cart.</p>}
           </article>
         )})}
-      </div>
+      </div>}
     </section>
   );
 }

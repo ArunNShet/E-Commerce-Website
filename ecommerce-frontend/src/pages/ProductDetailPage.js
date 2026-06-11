@@ -1,17 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { IoMdArrowRoundBack } from "react-icons/io";
 import { getProduct } from "../api/productsApi";
 import { addToCart, getCartItems, removeFromCart, updateCartQuantity } from "../lib/cartStore";
 import { formatPricePerWeight } from "../lib/currency";
 import ProductImage from "../components/ProductImage";
+import { showSuccessToast, showWarningToast } from "../lib/toast";
 
 function ProductDetailPage({ isAdmin }) {
   const { id } = useParams();
   const [product, setProduct] = useState(null);
   const [error, setError] = useState("");
-  const [toast, setToast] = useState(null);
   const [quantity, setQuantity] = useState(0);
-  const toastTimerRef = useRef(null);
 
   useEffect(() => {
     const loadProduct = async () => {
@@ -26,30 +26,19 @@ function ProductDetailPage({ isAdmin }) {
       }
     };
     loadProduct();
-    return () => {
-      if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current);
-      }
-    };
   }, [id]);
-
-  const showToast = (message, type = "success") => {
-    if (toastTimerRef.current) {
-      clearTimeout(toastTimerRef.current);
-    }
-    setToast({ message, type });
-    toastTimerRef.current = setTimeout(() => {
-      setToast(null);
-      toastTimerRef.current = null;
-    }, 3000);
-  };
 
   if (error) {
     return <p className="error">{error}</p>;
   }
 
   if (!product) {
-    return <p className="muted">Loading product...</p>;
+    return (
+      <div className="loading-state">
+        <div className="loading-spinner" aria-hidden="true"></div>
+        <p className="muted">Loading product...</p>
+      </div>
+    );
   }
 
   const isOutOfStock = Number(product.stock) <= 0;
@@ -58,7 +47,7 @@ function ProductDetailPage({ isAdmin }) {
     addToCart(product);
     const cartItem = getCartItems().find((item) => item.id === product.id);
     setQuantity(cartItem ? Number(cartItem.quantity) || 0 : 0);
-    showToast("Added to cart.");
+    showSuccessToast("Added to cart.");
   };
 
   const onDecreaseQuantity = () => {
@@ -73,7 +62,12 @@ function ProductDetailPage({ isAdmin }) {
 
   return (
     <article className="card product-detail-card">
-      {toast && <div className={`toast-message ${toast.type}`}>{toast.message}</div>}
+      <Link to="/products" className="product-detail-back">
+        <span className="nav-item-icon">
+          <IoMdArrowRoundBack />
+        </span>
+        Back to products
+      </Link>
       <div className="product-detail-layout">
         <div className="product-detail-media">
           <div className="product-detail-image-wrap">
@@ -98,7 +92,17 @@ function ProductDetailPage({ isAdmin }) {
                       -
                     </button>
                     <span>{quantity}</span>
-                    <button type="button" className="add-cart" disabled={isOutOfStock} onClick={onIncreaseQuantity}>
+                    <button
+                      type="button"
+                      className="add-cart"
+                      onClick={() => {
+                        if (isOutOfStock) {
+                          showWarningToast("Product not available.");
+                          return;
+                        }
+                        onIncreaseQuantity();
+                      }}
+                    >
                       +
                     </button>
                   </div>
@@ -106,20 +110,19 @@ function ProductDetailPage({ isAdmin }) {
                   <button
                     type="button"
                     className="add-cart"
-                    disabled={isOutOfStock}
                     onClick={() => {
                       if (isOutOfStock) {
+                        showWarningToast("Product not available.");
                         return;
                       }
                       onIncreaseQuantity();
                     }}
                   >
-                    Add to Cart
+                    {"\uD83D\uDED2"} Add Cart
                   </button>
                 )}
               </>
             )}
-            <Link to="/products">Back to products</Link>
           </div>
         </div>
       </div>
