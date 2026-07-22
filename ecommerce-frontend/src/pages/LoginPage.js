@@ -64,7 +64,7 @@ function LoginPage({ onLogin }) {
         </button>
       </form>
       <p className="muted">
-        New user? <a href="/register">Register here</a>
+        New user? <a href="/register" style={{ color: "blue" }}>Register here</a>
       </p>
     </section>
   );

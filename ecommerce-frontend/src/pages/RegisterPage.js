@@ -104,7 +104,7 @@ function RegisterPage({ onRegister }) {
       </form>
       <p className="muted auth-switch-text">
         Already registered?{" "}
-        <Link to="/login" className="button-link secondary auth-switch-link">
+        <Link to="/login" className="auth-switch-link">
           Login
         </Link>
       </p>

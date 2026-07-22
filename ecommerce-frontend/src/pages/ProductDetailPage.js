@@ -5,7 +5,8 @@ import { getProduct } from "../api/productsApi";
 import { addToCart, getCartItems, removeFromCart, updateCartQuantity } from "../lib/cartStore";
 import { formatPricePerWeight } from "../lib/currency";
 import ProductImage from "../components/ProductImage";
-import { showSuccessToast, showWarningToast } from "../lib/toast";
+import { showCartToast, showWarningToast } from "../lib/toast";
+import { formatCurrency } from "../lib/currency";
 
 function ProductDetailPage({ isAdmin }) {
   const { id } = useParams();
@@ -47,7 +48,12 @@ function ProductDetailPage({ isAdmin }) {
     addToCart(product);
     const cartItem = getCartItems().find((item) => item.id === product.id);
     setQuantity(cartItem ? Number(cartItem.quantity) || 0 : 0);
-    showSuccessToast("Added to cart.");
+    const totalItems = getCartItems().reduce(
+  (total, item) => total + Number(item.quantity || 0),
+  0
+);
+
+showCartToast(totalItems);
   };
 
   const onDecreaseQuantity = () => {
@@ -80,15 +86,16 @@ function ProductDetailPage({ isAdmin }) {
         </div>
         <div className="product-detail-info">
           <h2>{product.name}</h2>
-          <p>Price: {formatPricePerWeight(product.price, product.weight)}</p>
+                    <p><span style={{ fontWeight: "bold" }}>Weight:</span> {product.weight}</p>
+          <p><span style={{ fontWeight: "bold" }}>Price:</span> {formatCurrency(product.price)}</p>
           {product.description && <p className="product-description">{product.description}</p>}
           {isOutOfStock && <p className="out-of-stock">Out of stock</p>}
           <div className="row">
             {!isAdmin && (
               <>
                 {quantity > 0 ? (
-                  <div className="cart-stepper">
-                    <button type="button" className="secondary" onClick={onDecreaseQuantity}>
+                  <div className="cart-detail-stepper product-detail-stepper">
+                    <button type="button" className="add-cart" onClick={onDecreaseQuantity}>
                       -
                     </button>
                     <span>{quantity}</span>
@@ -109,7 +116,7 @@ function ProductDetailPage({ isAdmin }) {
                 ) : (
                   <button
                     type="button"
-                    className="add-cart"
+                    className="add-cart product-detail-add-cart"
                     onClick={() => {
                       if (isOutOfStock) {
                         showWarningToast("Product not available.");

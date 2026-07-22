@@ -83,7 +83,7 @@ function AdminProductsPage({ authToken }) {
 
   return (
     <section className="admin-products-page">
-      <div className="card">
+      <div className="card" id="admin-card">
         <h2>Create New Products</h2>
         <form className="admin-products-form" onSubmit={onSubmit}>
           <label>
@@ -93,6 +93,7 @@ function AdminProductsPage({ authToken }) {
               onChange={(e) => onChange("name", e.target.value)}
               required
               maxLength={180}
+              placeholder="Enter product Name"
             />
           </label>
           <label>
@@ -102,6 +103,7 @@ function AdminProductsPage({ authToken }) {
               onChange={(e) => onChange("weight", e.target.value)}
               required
               maxLength={50}
+              placeholder="Enter product weight (500g, 1kg)"
             />
           </label>
           <label>
@@ -132,9 +134,6 @@ function AdminProductsPage({ authToken }) {
                 </div>
               )}
             </div>
-            <small className="form-help-text">
-              Image files are saved in backend folder `uploads/products`.
-            </small>
           </label>
           <label>
             Price
@@ -144,6 +143,7 @@ function AdminProductsPage({ authToken }) {
               min="0.01"
               value={form.price}
               onChange={(e) => onChange("price", e.target.value)}
+              placeholder="Enter product Price"
               required
             />
           </label>

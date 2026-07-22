@@ -4,7 +4,7 @@ import { IoMdArrowRoundBack } from "react-icons/io";
 import { clearCart, getCartItems, removeFromCart, updateCartQuantity } from "../lib/cartStore";
 import { formatCurrency } from "../lib/currency";
 import ProductImage from "../components/ProductImage";
-import { showWarningToast } from "../lib/toast";
+import { showCartToast, showErrorToast, showSuccessToast, showWarningToast } from "../lib/toast";
 
 function CartPage() {
   const [items, setItems] = useState(getCartItems());
@@ -23,9 +23,19 @@ function CartPage() {
     showWarningToast("Removed from cart.");
   };
 
-  const onIncrease = (id, currentQuantity) => {
-    onQuantityChange(id, Number(currentQuantity) + 1);
-  };
+const onIncrease = (id, currentQuantity) => {
+  const nextQuantity = Number(currentQuantity) + 1;
+
+  const updatedItems = updateCartQuantity(id, nextQuantity);
+  setItems(updatedItems);
+
+  const totalItems = updatedItems.reduce(
+    (total, item) => total + Number(item.quantity || 0),
+    0
+  );
+
+  showCartToast(totalItems);
+};
 
   const onDecrease = (id, currentQuantity) => {
     const nextQuantity = Number(currentQuantity) - 1;
@@ -72,23 +82,20 @@ function CartPage() {
             </div>
           </div>
           <div className="cart-item-actions">
-            <div className="cart-stepper cart-page-stepper">
+            <div className="cart-stepper cart-page-stepper product-shop-stepper cart-stepper">
               <button type="button" className="secondary" onClick={() => onDecrease(item.id, item.quantity)}>
                 -
               </button>
               <span>{item.quantity}</span>
-              <button type="button" className="add-cart" onClick={() => onIncrease(item.id, item.quantity)}>
+              <button type="button" className="add-cart product-shop-add" onClick={() => onIncrease(item.id, item.quantity)}>
                 +
               </button>
             </div>
-            <button type="button" className="danger cart-remove-button" onClick={() => onRemove(item.id)}>
-              Remove
-            </button>
           </div>
         </div>
       ))}
       {items.length > 0 && (
-        <div className="cart-summary">
+        <div className="cart-submit">
           <h3>Total: {formatCurrency(total)}</h3>
           <div className="cart-summary-actions">
             <button type="button" className="secondary cart-clear-button" onClick={onClear}>

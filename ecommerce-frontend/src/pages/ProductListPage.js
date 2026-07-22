@@ -1,11 +1,32 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { deleteProduct, listProducts, updateProduct, uploadProductImage } from "../api/productsApi";
 import { addToCart, getCartItems, removeFromCart, updateCartQuantity } from "../lib/cartStore";
-import { formatPricePerWeight } from "../lib/currency";
+import { formatCurrency } from "../lib/currency";
 import ProductImage from "../components/ProductImage";
 import { FiSearch } from "react-icons/fi";
-import { showErrorToast, showSuccessToast, showWarningToast } from "../lib/toast";
+import { BsCart4 } from "react-icons/bs";
+import { increaseCart } from "../lib/cartUtils";
+import { showCartToast, showErrorToast, showSuccessToast, showWarningToast } from "../lib/toast";
+
+function getProductBadge(product) {
+  const stock = Number(product.stock) || 0;
+  if (stock <= 0) {
+    return { label: "Sold Out", tone: "sold-out" };
+  }
+  if (stock <= 5) {
+    return { label: "Limited", tone: "limited" };
+  }
+  return { label: "Fresh Batch", tone: "fresh" };
+}
+
+function getShortDescription(description) {
+  const text = String(description || "").trim();
+  if (!text) {
+    return "Traditional flavour, carefully prepared for everyday kitchens.";
+  }
+  return text.length > 110 ? `${text.slice(0, 107)}...` : text;
+}
 
 function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
   const [products, setProducts] = useState([]);
@@ -89,11 +110,17 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
     return [...matches, ...remainingInStock, ...remainingOutOfStock];
   }, [products, search]);
 
-  const onIncreaseQuantity = (product) => {
-    addToCart(product);
-    syncCartQuantities();
-    showSuccessToast("Added to cart.");
-  };
+const onIncreaseQuantity = (product) => {
+  addToCart(product);
+  syncCartQuantities();
+
+  const totalItems = getCartItems().reduce(
+    (total, item) => total + Number(item.quantity || 0),
+    0
+  );
+
+  showCartToast(totalItems);
+};
 
   const onDecreaseQuantity = (productId, currentQuantity) => {
     if (currentQuantity <= 1) {
@@ -198,6 +225,15 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
     } catch (err) {
       showErrorToast(err.message);
     }
+  };
+
+  const openProductCard = (productId) => {
+    if (!isLoggedIn) {
+      showWarningToast("Login required to view details or add to cart.");
+      navigate("/login");
+      return;
+    }
+    navigate(`/products/${productId}`);
   };
 
   return (
@@ -309,90 +345,118 @@ function ProductListPage({ isLoggedIn, isAdmin, authToken }) {
         {orderedProducts.map((product) => {
           const isOutOfStock = Number(product.stock) <= 0;
           const quantity = cartQuantities[product.id] || 0;
+          const badge = getProductBadge(product);
           return (
-          <article key={product.id} className="card">
-            <div className={`product-card-media ${isOutOfStock ? "is-out-of-stock" : ""}`}>
-              <Link
-                to={isLoggedIn ? `/products/${product.id}` : "/login"}
-                className="product-card-image-wrap product-image-link"
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    showWarningToast("Login required to view details or add to cart.");
+          <article
+            key={product.id}
+            className={`card product-shop-card ${!isAdmin ? "product-shop-card-clickable" : ""}`}
+            onClick={!isAdmin ? () => openProductCard(product.id) : undefined}
+            onKeyDown={
+              !isAdmin
+                ? (event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      openProductCard(product.id);
+                    }
                   }
-                }}
-              >
+                : undefined
+            }
+            role={!isAdmin ? "link" : undefined}
+            tabIndex={!isAdmin ? 0 : undefined}
+          >
+            <div className={`product-card-media product-shop-card-media ${isOutOfStock ? "is-out-of-stock" : ""}`}>
+              <div className="product-card-image-wrap product-image-link">
                 <ProductImage imageUrl={product.imageUrl} productName={product.name} className="product-card-image" />
-              </Link>
-              {isOutOfStock && <div className="product-card-stock-banner">Out of stock</div>}
+              </div>
+              <div className={`product-shop-badge ${badge.tone}`}>{badge.label}</div>
             </div>
-            <h3>{product.name}</h3>
-            <p>Price: {formatPricePerWeight(product.price, product.weight)}</p>
-            <div className="row">
-              <Link
-                to={isLoggedIn ? `/products/${product.id}` : "/login"}
-                className={!isLoggedIn ? "muted" : undefined}
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    showWarningToast("Login required to view details or add to cart.");
-                  }
-                }}
-              >
-                View
-              </Link>
-              {!isAdmin && (
-                <>
-                  {quantity > 0 ? (
-                    <div className="cart-stepper">
-                      <button type="button" className="secondary" onClick={() => onDecreaseQuantity(product.id, quantity)}>
-                        -
-                      </button>
-                      <span>{quantity}</span>
+            <div className="product-shop-body">
+              <p className="product-shop-weight-label">{product.weight}</p>
+              <h3 className="product-shop-title">{product.name}</h3>
+              <p className="product-shop-description">{getShortDescription(product.description)}</p>
+              <div className="product-shop-price-row">
+                <p className="product-shop-price">{formatCurrency(product.price)}</p>
+                <div className="row product-shop-actions">
+                  {!isAdmin && (
+                    <>
+                      {quantity > 0 ? (
+                        <div className="cart-stepper product-shop-stepper" onClick={(event) => event.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="secondary"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              onDecreaseQuantity(product.id, quantity);
+                            }}
+                          >
+                            -
+                          </button>
+                          <span>{quantity}</span>
+                          <button
+                            type="button"
+                            className="add-cart product-shop-add"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              if (isOutOfStock) {
+                                showWarningToast("Product not available.");
+                                return;
+                              }
+                              onIncreaseQuantity(product);
+                            }}
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="add-cart product-shop-add"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (!isLoggedIn) {
+                              showWarningToast("Login required to view details or add to cart.");
+                              navigate("/login");
+                              return;
+                            }
+                            if (isOutOfStock) {
+                              showWarningToast("Product not available.");
+                              return;
+                            }
+                            onIncreaseQuantity(product);
+                          }}
+                        >
+                          <BsCart4 />
+                          <span> add</span>
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {isAdmin && (
+                    <>
                       <button
                         type="button"
-                        className="add-cart"
-                        onClick={() => {
-                          if (isOutOfStock) {
-                            showWarningToast("Product not available.");
-                            return;
-                          }
-                          onIncreaseQuantity(product);
+                        className="secondary"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onEditStart(product);
                         }}
                       >
-                        +
+                        Edit
                       </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="add-cart"
-                      onClick={() => {
-                        if (!isLoggedIn) {
-                          showWarningToast("Login required to view details or add to cart.");
-                          navigate("/login");
-                          return;
-                        }
-                        if (isOutOfStock) {
-                          showWarningToast("Product not available.");
-                          return;
-                        }
-                        onIncreaseQuantity(product);
-                      }}
-                    >
-                      {"\uD83D\uDED2"} Add Cart
-                    </button>
+                      <button
+                        type="button"
+                        className="danger"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onDeleteProduct(product.id);
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </>
                   )}
-                </>
-              )}
-              {isAdmin && (
-                <>
-                  <button type="button" className="secondary" onClick={() => onEditStart(product)}>
-                    Edit
-                  </button>
-                  <button type="button" className="danger" onClick={() => onDeleteProduct(product.id)}>
-                    Delete
-                  </button>
-                </>
-              )}
+                </div>
+              </div>
             </div>
           </article>
         )})}

@@ -1,5 +1,9 @@
 const CART_KEY = "ecommerce_cart";
 
+function notifyCartUpdated() {
+  window.dispatchEvent(new Event("cart-updated"));
+}
+
 export function getCartItems() {
   try {
     const raw = localStorage.getItem(CART_KEY);
@@ -31,6 +35,7 @@ export function addToCart(product) {
     });
   }
   localStorage.setItem(CART_KEY, JSON.stringify(items));
+  notifyCartUpdated();
   return items;
 }
 
@@ -39,15 +44,18 @@ export function updateCartQuantity(productId, quantity) {
     item.id === productId ? { ...item, quantity: Math.max(1, Number(quantity)) } : item
   );
   localStorage.setItem(CART_KEY, JSON.stringify(items));
+  notifyCartUpdated();
   return items;
 }
 
 export function removeFromCart(productId) {
   const items = getCartItems().filter((item) => item.id !== productId);
   localStorage.setItem(CART_KEY, JSON.stringify(items));
+  notifyCartUpdated();
   return items;
 }
 
 export function clearCart() {
   localStorage.removeItem(CART_KEY);
+  notifyCartUpdated();
 }
